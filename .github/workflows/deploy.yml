@@ -33,25 +33,21 @@ jobs:
         with:
           version: latest
 
-      - name: Verify Emscripten Installation
+      - name: Verify Emscripten Setup
         run: emcc -v
 
-      - name: Compile to WebAssembly (Emscripten)
+      - name: Compile SM64 to WebAssembly
         run: |
-          # Example compilation step for web target (adjust flags to match your Makefile/fork)
-          # If using sm64ex or sm64-port with a web target Makefile:
-          make PLATFORM=web -j$(nproc)
-          
-          # Or if building manually with a script, invoke your custom build script here:
-          # ./build.sh
+          # Build target for web platform (adjust target flags if using a custom Makefile fork)
+          make PLATFORM=web -j$(nproc) || make TARGET_WEB=1 -j$(nproc)
 
-      - name: Setup Pages
+      - name: Setup GitHub Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload Artifacts for GitHub Pages
+      - name: Upload Artifacts for Deployment
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './build/us_web' # Adjust to your compiled web output directory
+          path: './build/us_web' # Adjust this path if your build outputs to a different directory
 
   deploy:
     environment:
