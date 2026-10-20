@@ -106,6 +106,14 @@ jobs:
           ls -l prefail.txt
         shell: bash
 
+      - name: Upload preflight diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diag
+          path: prefail.txt
+          retention-days: 14
+
       - name: Build (logged)
         env:
           EM_CACHE: ~/.cache/emscripten
