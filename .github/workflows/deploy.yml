@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -132,6 +132,40 @@ jobs:
           name: build-log
           path: build.log
           retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 14
+
+      - name: Publish debug release (readable without sign-in)
+        if: failure()
+        run: |
+          set +e
+          TAG="ci-debug-${{ github.run_id }}"
+          REPO="${{ github.repository }}"
+          echo "gh auth:"
+          gh auth status 2>&1 | head -5 || true
+          echo " Creating release tag=$TAG"
+          if gh release create "$TAG" \
+            --title "Debug run ${{ github.run_id }}" \
+            --notes "Failure on `${{ github.sha }}` in `${{ github.workflow }}`. Assets: prefail.txt (preflight diagnostics), build.log (full bash -x build trace)." \
+            --prerelease \
+            prefail.txt build.log; then
+            echo "DEBUG RELEASE (readable, no sign-in): https://github.com/$REPO/releases/tag/$TAG"
+            echo "  prefail.txt: https://github.com/$REPO/releases/download/$TAG/prefail.txt"
+            echo "  build.log:   https://github.com/$REPO/releases/download/$TAG/build.log"
+          else
+            echo "gh release create FAILED (exit $?). Prefail/build.log are ALSO in the auth-gated build-log artifact, and printed below."
+            echo "=== prefail.txt ==="
+            cat prefail.txt 2>/dev/null || echo "(no prefail.txt)"
+            echo
+            echo "=== build.log (first 4000 chars) ==="
+            head -c 4000 build.log 2>/dev/null || echo "(no build.log)"
+          fi
 
       - name: Smoke test in headless Chromium
         run: |

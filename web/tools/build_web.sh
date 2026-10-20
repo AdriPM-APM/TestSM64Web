@@ -49,7 +49,7 @@ if [ -n "${EMSDK:-}" ]; then
 fi
 command -v emcc >/dev/null || \
   die "emcc not found. Install emsdk and either put it on PATH or set EMSDK=<emsdk root>."
-emcc --version | head -1
+emcc --version | head -1 || true   # tolerate a crashing emcc (exit nonzero on --version); the real gate is `command -v emcc` above
 
 # The output dir is wiped before assembly. Refuse any target whose *contents*
 # would delete the sources this script copies from (e.g. `build_web.sh web` or
