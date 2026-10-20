@@ -62,11 +62,24 @@ jobs:
           restore-keys: |
             emcache-${{ runner.os }}-6.0.13-
 
-      - name: Build
+      - name: Build (logged)
         env:
           EM_CACHE: ~/.cache/emscripten
           JOBS: 4
-        run: bash web/tools/build_web.sh dist
+        run: |
+          # Capture everything so a failure is debuggable even when live logs
+          # are not reachable. `bash -x` traces each command.
+          bash -x web/tools/build_web.sh dist > build.log 2>&1; echo "BUILD_EXIT=$?" >> build.log
+          cat build.log
+          exit $(tail -n 1 build.log | sed -n 's/BUILD_EXIT=//p')
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 14
 
       - name: Smoke test in headless Chromium
         run: |
