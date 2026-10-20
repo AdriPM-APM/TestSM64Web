@@ -70,3 +70,18 @@ build/*
 !/sound/**/*custom*/**/*.aiff
 !/assets/**/*custom*.bin
 !/assets/**/*custom*/**/*.bin
+
+# Local build / CI scratch (never commit)
+.build/
+dist/
+
+# CI artifacts
+artifacts/
+smoke.png
+
+# Sites deployment staging (built by web/tools, served directly)
+deploy/
+
+# npm install artifacts (CI smoke test)
+node_modules/
+package-lock.json

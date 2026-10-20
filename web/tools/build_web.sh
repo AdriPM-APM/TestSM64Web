@@ -51,13 +51,19 @@ command -v emcc >/dev/null || \
   die "emcc not found. Install emsdk and either put it on PATH or set EMSDK=<emsdk root>."
 emcc --version | head -1
 
-# The output dir is wiped before assembly. Refuse any target that would delete
-# the sources this script copies from — e.g. `build_web.sh web` or `... .`.
+# The output dir is wiped before assembly. Refuse any target whose *contents*
+# would delete the sources this script copies from (e.g. `build_web.sh web` or
+# `... .`). Building into a subdirectory of the repo (e.g. dist/) is fine.
 OUT_ABS="$(realpath -m "$OUT")"
 for protected in "$(realpath -m "$WEB_DIR")" "$(realpath -m "$REPO_DIR")"; do
-  case "$OUT_ABS/" in
-    "$protected/"*)
-      die "refusing to build into $OUT_ABS: it would delete sources. Use a separate output dir, e.g. dist/"
+  case "$OUT_ABS" in
+    "$protected")
+      die "refusing to build into $OUT_ABS: it is $protected itself. Use a separate output dir, e.g. dist/"
+      ;;
+  esac
+  case "$protected" in
+    "$OUT_ABS"/*)
+      die "refusing to build into $OUT_ABS: $protected is inside it, so the wipe would delete sources"
       ;;
   esac
 done
