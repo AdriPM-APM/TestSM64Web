@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+<meta name="theme-color" content="#0b0e13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>SM64 — Web</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#111722; --fg:#e9e7e2; --dim:#8b94a3;
+    --accent:#f5c542; --accent-ink:#2a2100; --line:rgba(255,255,255,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);overflow:hidden;
+    font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    overscroll-behavior:none;touch-action:none}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
+  #canvas{display:block;background:#000;outline:none;
+    width:min(100vw,calc(100vh * 4 / 3));height:min(100vh,calc(100vw * 3 / 4));
+    image-rendering:auto;touch-action:none}
+  /* ---------- start / boot screen ---------- */
+  #boot{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;
+    background:radial-gradient(circle at 50% 30%,#18202e 0%,#0b0e13 70%);cursor:pointer;
+    transition:opacity .25s ease, visibility .25s ease}
+  #boot.hide{opacity:0;visibility:hidden;pointer-events:none}
+  #boot .logo{font-size:clamp(28px,7vw,46px);font-weight:900;letter-spacing:.06em;
+    background:linear-gradient(180deg,#fff 20%,var(--accent) 55%,#e08b1a 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 40px rgba(245,197,66,.25);margin:0}
+  #boot .sub{color:var(--dim);max-width:620px;margin:0;font-size:clamp(12px,2.6vw,14px)}
+  #boot .go{background:linear-gradient(180deg,#ffd964,#e9a91b);color:var(--accent-ink);
+    font-weight:800;font-size:clamp(16px,3.4vw,19px);border:0;border-radius:999px;
+    padding:14px 40px;box-shadow:0 8px 26px rgba(245,197,66,.32),inset 0 -3px 0 rgba(0,0,0,.22);
+    cursor:pointer;transition:transform .08s ease,filter .08s ease}
+  #boot .go:active{transform:scale(.97);filter:brightness(1.06)}
+  #boot .go[disabled]{opacity:.55;cursor:progress}
+  #boot .meter{width:min(340px,72vw);height:6px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden}
+  #boot .meter i{display:block;height:100%;width:0%;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent),#ff8a3c);transition:width .18s ease}
+  #boot .keys{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;
+    color:var(--dim);font-size:clamp(11px,2.4vw,12.5px);max-width:640px}
+  kbd{border:1px solid #444b58;border-bottom-width:2px;border-radius:5px;padding:1px 6px;
+    font:12px ui-monospace,SFMono-Regular,monospace;color:var(--fg);background:rgba(255,255,255,.04)}
+  /* ---------- hud ---------- */
+  #hud{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));
+    z-index:30;display:flex;gap:8px;opacity:.35;transition:opacity .2s}
+  #hud:hover,#hud:focus-within{opacity:1}
+  #hud button{appearance:none;border:1px solid var(--line);background:rgba(15,20,28,.82);
+    color:var(--fg);border-radius:11px;padding:7px 11px;font-size:13px;font-weight:600;
+    backdrop-filter:blur(6px);cursor:pointer;line-height:1}
+  #hud button:active{background:rgba(255,255,255,.16)}
+  #toast{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(14px);
+    background:rgba(15,20,28,.94);border:1px solid var(--line);color:var(--fg);border-radius:11px;
+    padding:8px 14px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:40}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #err{position:fixed;inset:auto 12px 12px 12px;z-index:60;display:none;padding:12px 14px;
+    background:#2a1216;border:1px solid #6d2230;border-radius:12px;color:#ffd9df;
+    font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap;max-height:40vh;overflow:auto}
+  body.playing #boot{opacity:0}
+  @media (pointer:coarse){ #boot .keys{display:none} }
+</style>
+</head>
+<body>
+  <div id="stage"><canvas id="canvas" tabindex="-1"></canvas></div>
+
+  <div id="boot">
+    <h1 class="logo">SUPER MARIO 64</h1>
+    <p class="sub">Decompiled source compiled to WebAssembly, running entirely in your browser.</p>
+    <button class="go" id="go">Tap to play</button>
+    <div class="meter" aria-hidden="true"><i id="bar"></i></div>
+    <div class="keys" id="keys">
+      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span>
+      <span><kbd>L</kbd> A / jump</span>
+      <span><kbd>,</kbd> B / punch</span>
+      <span><kbd>K</kbd> Z</span>
+      <span><kbd>Space</kbd> Start</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> C buttons</span>
+      <span><kbd>R&nbsp;Shift</kbd> R</span>
+      <span>gamepad &amp; touch work too</span>
+    </div>
+  </div>
+
+  <div id="hud">
+    <button id="btn-full" title="Fullscreen">⛶</button>
+    <button id="btn-pad" title="Toggle on-screen controls">🕹</button>
+  </div>
+  <div id="toast"></div>
+  <pre id="err"></pre>
+
+<script>
+/* ------------------------------------------------------------------ config */
+var Q = new URLSearchParams(location.search);
+var canvas = document.getElementById('canvas');
+var bootEl = document.getElementById('boot');
+var goEl   = document.getElementById('go');
+var barEl  = document.getElementById('bar');
+var errEl  = document.getElementById('err');
+var toastEl= document.getElementById('toast');
+
+function toast(msg, ms) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 1800);
+}
+function fail(msg) {
+  errEl.style.display = 'block';
+  errEl.textContent = String(msg);
+  bootEl.classList.remove('hide');
+  goEl.disabled = false;
+  goEl.textContent = 'Tap to retry';
+}
+window.addEventListener('error', function (e) { if (e && e.message) fail(e.message); });
+
+/* --------------------------------------------------------------- PWA install */
+var installEvent = null;
+window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvent = e; });
+
+/* --------------------------------------------------------- service worker */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () { /* offline cache is optional */ });
+  });
+}
+
+/* ------------------------------------------------------------ module config */
+var Module = {
+  canvas: canvas,
+  print:    function (t) { console.log(t); },
+  printErr: function (t) { console.log(t); },
+  setStatus: function (t) {
+    if (!t) return;
+    var m = /\((\d+)\s*\/\s*(\d+)\)/.exec(t);
+    if (m) { barEl.style.width = Math.round(100 * m[1] / m[2]) + '%'; return; }
+    if (/Downloading|Loading|Preparing/.test(t)) barEl.style.width = '8%';
+  },
+  locateFile: function (path) { return path; },
+  onAbort: function (what) { fail('Engine aborted: ' + what); },
+  onRuntimeInitialized: function () {
+    barEl.style.width = '100%';
+    document.body.classList.add('playing');
+    bootEl.classList.add('hide');
+    canvas.focus();
+    if (window.__pad) window.__pad.onGameReady();
+  }
+};
+window.Module = Module;
+
+/* ------------------------------------------------------------- dev hooks
+   ?dump=3,6       log canvas PNGs at those seconds (used by automated checks)
+   ?keys=2:KeyL:.2 press a key at t=2s for 0.2s
+   ?autostart=1    skip the start screen (audio may stay muted)                  */
+(function devHooks() {
+  if (Q.has('dump')) {
+    var gc = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (t, o) {
+      o = o || {}; o.preserveDrawingBuffer = true; return gc.call(this, t, o);
+    };
+  }
+  (Q.get('dump') || '').split(',').filter(Boolean).forEach(function (s, k) {
+    setTimeout(function () {
+      var done = false;
+      function shot() {
+        if (done) return; done = true;
+        var url = canvas.toDataURL('image/png');
+        for (var i = 0; i < url.length; i += 4000) console.log('PW64PNG:' + k + ':' + url.slice(i, i + 4000));
+        console.log('PW64PNG:' + k + ':END');
+      }
+      requestAnimationFrame(shot); setTimeout(shot, 400);
+    }, (+s) * 1000);
+  });
+  (Q.get('keys') || '').split(',').filter(Boolean).forEach(function (e) {
+    var p = e.split(':'), t = +p[0], code = p[1], d = +(p[2] || 0.15);
+    setTimeout(function () { window.dispatchEvent(new KeyboardEvent('keydown', { code: code })); }, t * 1000);
+    setTimeout(function () { window.dispatchEvent(new KeyboardEvent('keyup',   { code: code })); }, (t + d) * 1000);
+  });
+})();
+
+/* ---------------------------------------------------------------- boot game */
+var started = false;
+
+function loadScript() {
+  var s = document.createElement('script');
+  s.src = 'sm64.us.js';
+  s.onerror = function () { started = false; fail('Could not load sm64.us.js — is the build present next to index.html?'); };
+  document.body.appendChild(s);
+}
+
+/* The wasm is mostly asset data and compresses to about 45% of its size. Fetching
+   sm64.us.wasm.gz and handing the bytes to Emscripten via Module.wasmBinary roughly
+   halves the download on mobile. Browsers without DecompressionStream, or servers
+   without the .gz, fall through to the plain .wasm that Emscripten fetches itself. */
+function prepareBinary() {
+  if (Q.get('raw') === '1' || typeof DecompressionStream === 'undefined') return Promise.resolve();
+  return fetch('sm64.us.wasm.gz', { cache: 'force-cache' }).then(function (res) {
+    if (!res.ok) return;
+    var total = Number(res.headers.get('content-length')) || 0;
+
+    var body = res.body && res.body.getReader
+      ? res.body.getReader()
+      : null;
+    if (!body) return res.arrayBuffer().then(decompress).then(assign);
+
+    var chunks = [], got = 0;
+    function pump() {
+      return body.read().then(function (r) {
+        if (r.done) return;
+        chunks.push(r.value);
+        got += r.value.length;
+        if (total) {
+          var pct = Math.min(96, Math.round(96 * got / total));
+          barEl.style.width = pct + '%';
+          goEl.textContent = 'Loading engine… ' + Math.round(100 * got / total) + '%';
+        }
+        return pump();
+      });
+    }
+    return pump().then(function () {
+      var bytes = new Uint8Array(got), off = 0;
+      for (var i = 0; i < chunks.length; i++) { bytes.set(chunks[i], off); off += chunks[i].length; }
+      return decompress(bytes.buffer);
+    }).then(assign);
+  }).catch(function () { /* any failure: let Emscripten fetch sm64.us.wasm */ });
+
+  function decompress(buffer) {
+    var stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+    return new Response(stream).arrayBuffer();
+  }
+
+  /* Emscripten ignores Module.wasmBinary on this version, so hook the one API it
+     does honour: instantiateWasm receives the import object and must call back
+     with the instance. We already hold the bytes, so nothing is fetched here. */
+  function assign(buffer) {
+    var bytes = new Uint8Array(buffer);
+    Module.instantiateWasm = function (imports, onSuccess) {
+      WebAssembly.instantiate(bytes, imports).then(function (result) {
+        onSuccess(result.instance, result.module);
+      }).catch(function (e) {
+        fail('Could not start the WebAssembly engine: ' + (e && e.message ? e.message : e));
+      });
+      return {};
+    };
+    barEl.style.width = '96%';
+    goEl.textContent = 'Starting…';
+  }
+}
+
+function start() {
+  if (started) return;
+  started = true;
+  goEl.disabled = true;
+  goEl.textContent = 'Loading engine…';
+  barEl.style.width = '4%';
+
+  /* Fullscreen has to be requested from the gesture that started us. */
+  if (Q.get('fs') !== '0' && matchMedia('(pointer:coarse)').matches && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(function () {});
+    if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function () {});
+  }
+
+  prepareBinary().then(loadScript, loadScript);
+}
+goEl.addEventListener('click', start, { once: false });
+bootEl.addEventListener('click', function (e) { if (e.target === bootEl) start(); });
+if (installEvent) {
+  window.addEventListener('click', function once() {
+    if (!installEvent) return;
+    installEvent.prompt(); installEvent = null;
+  }, { once: true });
+}
+if (Q.has('autostart')) start();
+
+/* --------------------------------------------------------------------- hud */
+document.getElementById('btn-full').addEventListener('click', function () {
+  if (document.fullscreenElement) { document.exitFullscreen().catch(function () {}); return; }
+  document.documentElement.requestFullscreen().catch(function () { toast('Fullscreen blocked'); });
+});
+document.getElementById('btn-pad').addEventListener('click', function () {
+  if (window.__pad) window.__pad.toggle();
+});
+
+/* Keep the canvas keyboard focusable so arrow keys never scroll the page. */
+window.addEventListener('keydown', function (e) {
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Space'].indexOf(e.key) !== -1) {
+    e.preventDefault();
+  }
+}, { passive: false });
+canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+</script>
+<script src="pad.js"></script>
+</body>
+</html>
