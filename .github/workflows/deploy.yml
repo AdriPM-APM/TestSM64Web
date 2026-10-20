@@ -106,6 +106,10 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Turns Pages on for the repo if it has never been enabled. Needs a
+          # plan that allows Pages for this repo's visibility.
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
