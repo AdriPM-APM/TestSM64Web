@@ -1,0 +1,65 @@
+name: Build and Deploy SM64 Web Port
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config git python3 python3-pip libaudiofile-dev libglew-dev libsdl2-dev
+
+      - name: Setup Emscripten SDK (emsdk)
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Verify Emscripten Installation
+        run: emcc -v
+
+      - name: Compile to WebAssembly (Emscripten)
+        run: |
+          # Example compilation step for web target (adjust flags to match your Makefile/fork)
+          # If using sm64ex or sm64-port with a web target Makefile:
+          make PLATFORM=web -j$(nproc)
+          
+          # Or if building manually with a script, invoke your custom build script here:
+          # ./build.sh
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Artifacts for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './build/us_web' # Adjust to your compiled web output directory
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
