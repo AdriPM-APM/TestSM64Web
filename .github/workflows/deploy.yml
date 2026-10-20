@@ -62,6 +62,50 @@ jobs:
           restore-keys: |
             emcache-${{ runner.os }}-6.0.13-
 
+      - name: Preflight diagnostics
+        run: |
+          set +e
+          echo "=== PATH ===" > prefail.txt
+          echo "$PATH" >> prefail.txt
+          echo "=== which emcc ===" >> prefail.txt
+          which emcc >> prefail.txt 2>&1 || echo "(no emcc on PATH)" >> prefail.txt
+          echo "=== emcc --version (stdout) ===" >> prefail.txt
+          emcc --version >> prefail.txt 2>&1 || true
+          echo "=== emcc --version exit=$? ===" >> prefail.txt
+          echo "=== command -v emcc ===" >> prefail.txt
+          command -v emcc >> prefail.txt 2>&1 || echo "(command -v: no emcc)" >> prefail.txt
+          echo "=== realpath present? ===" >> prefail.txt
+          command -v realpath >> prefail.txt 2>&1 || echo "(no realpath)" >> prefail.txt
+          echo "=== realpath -m dist (cwd=repo root) ===" >> prefail.txt
+          (cd "$GITHUB_WORKSPACE" && realpath -m dist) >> prefail.txt 2>&1 || echo "(realpath -m dist failed)" >> prefail.txt
+          echo "=== realpath -m web ===" >> prefail.txt
+          (cd "$GITHUB_WORKSPACE" && realpath -m web) >> prefail.txt 2>&1 || echo "(realpath -m web failed)" >> prefail.txt
+          echo "=== realpath -m WEB_DIR/.. ===" >> prefail.txt
+          (cd "$GITHUB_WORKSPACE/web" && realpath -m "$(dirname "$(pwd -P)")") >> prefail.txt 2>&1 || echo "(failed)" >> prefail.txt
+          echo "=== guard simulation for OUT=dist ===" >> prefail.txt
+          OUT_ABS="$(cd "$GITHUB_WORKSPACE" && realpath -m dist)"
+          WEB_DIR="$(cd "$GITHUB_WORKSPACE/web" && pwd -P)"
+          REPO_DIR="$(cd "$GITHUB_WORKSPACE/web" && dirname "$(pwd -P)")"
+          echo "OUT_ABS=$OUT_ABS" >> prefail.txt
+          echo "WEB_DIR=$WEB_DIR" >> prefail.txt
+          echo "REPO_DIR=$REPO_DIR" >> prefail.txt
+          guard_ok=1
+          for protected in "$WEB_DIR" "$REPO_DIR"; do
+            case "$OUT_ABS" in
+              "$protected") echo "GUARD REJECT (OUT==protected)" >> prefail.txt; guard_ok=0;;
+            esac
+            case "$protected" in
+              "$OUT_ABS"/*) echo "GUARD REJECT (protected inside OUT)" >> prefail.txt; guard_ok=0;;
+            esac
+          done
+          if [ "$guard_ok" = 1 ]; then echo "GUARD: would PASS (dist allowed)" >> prefail.txt; else echo "GUARD: would REJECT" >> prefail.txt; fi
+          echo "=== preflight result ===" >> prefail.txt
+          echo "OK" >> prefail.txt
+          echo "=== prefail.txt written, publishing as artifact ==="
+          cat prefail.txt
+          ls -l prefail.txt
+        shell: bash
+
       - name: Build (logged)
         env:
           EM_CACHE: ~/.cache/emscripten
