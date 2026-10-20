@@ -1,9 +1,11 @@
 """Static server for the SM64 web build, with the MIME types the build needs.
 
-    python3 web/tools/serve.py [port] [--bind 0.0.0.0]
+    python3 web/tools/serve.py [port] [--bind 0.0.0.0] [--root DIR]
 
-Python's http.server does not know .wasm or .webmanifest, which breaks
-`WebAssembly.instantiateStreaming` and PWA installs, so they are set here.
+Serves this repo's web/ directory by default; pass --root dist to serve a build
+produced by build_web.sh. Python's http.server does not know .wasm or
+.webmanifest, which breaks `WebAssembly.instantiateStreaming` and PWA installs,
+so they are set here.
 """
 import functools
 import os
@@ -51,9 +53,15 @@ def main():
     if "--bind" in args:
         bind = args[args.index("--bind") + 1]
 
-    handler = functools.partial(Handler, directory=ROOT)
+    root = ROOT
+    if "--root" in args:
+        root = os.path.abspath(args[args.index("--root") + 1])
+    if not os.path.isdir(root):
+        raise SystemExit(f"no such directory: {root}")
+
+    handler = functools.partial(Handler, directory=root)
     srv = ThreadingHTTPServer((bind, port), handler)
-    print(f"serving {ROOT} on http://{bind}:{port}", flush=True)
+    print(f"serving {root} on http://{bind}:{port}", flush=True)
     srv.serve_forever()
 
 
